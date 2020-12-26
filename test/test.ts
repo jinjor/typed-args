@@ -67,6 +67,27 @@ test("targets and rest", () => {
   deepStrictEqual(actual, expected);
 });
 
+test("flexible syntax", () => {
+  const opt = {
+    s: `-n , --num : number [ ] = [ 1 , 2 ] bla bla `,
+  } as const;
+  getArgs([], opt, options);
+});
+
+test("string syntax", () => {
+  const cmd = "";
+  const opt = {
+    s: `--s=" "`,
+  } as const;
+  const expected = {
+    targets: [],
+    options: { s: " " },
+    rest: [],
+  };
+  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  deepStrictEqual(actual, expected);
+});
+
 test("example", () => {
   const cmd = "a b -b 2 --baz2 --flag";
   const opt = {
