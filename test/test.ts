@@ -1,5 +1,5 @@
-import { deepStrictEqual } from "assert";
-import { getArgs } from "../src";
+import { deepStrictEqual, fail } from "assert";
+import { getArgs, SettingsError } from "../src";
 
 function test(name: string, f: Function) {
   try {
@@ -11,8 +11,47 @@ function test(name: string, f: Function) {
   } catch (e) {
     setTimeout(() => {
       console.log("❌ " + name);
-      console.log(e.message);
+      console.log("    " + e.message);
     }, 0);
+  }
+}
+function expectError(errorClass: any, f: Function): void {
+  try {
+    f();
+    fail(`expected ${errorClass.name} to be thrown but no error was thrown`);
+  } catch (e: any) {
+    if (e instanceof errorClass) {
+      return;
+    }
+    fail(
+      `expected ${errorClass.name} to be thrown but got another error: ${e.message}`
+    );
+  }
+}
+
+const options = { showHelp: false, exitOnError: false };
+
+{
+  for (const s of [
+    `--a:boolean=1`,
+    `--a:boolean=""`,
+    `--a:number=true`,
+    `--a:number=""`,
+    `--a:number=[]`,
+    `--a:number[]=[""]`,
+    `--a:number[]=[true]`,
+    `--a:number[]=1`,
+    `--a:string=true`,
+    `--a:string=1`,
+    `--a:string=[]`,
+    `--a:string[]=[1]`,
+    `--a:string[]=[true]`,
+    `--a:string[]=""`,
+  ] as const) {
+    test("invalid default: " + s, () => {
+      const opt = { s } as const;
+      expectError(SettingsError, () => getArgs([], opt, options));
+    });
   }
 }
 
@@ -24,9 +63,10 @@ test("targets and rest", () => {
     options: {},
     rest: ["-a", "--foo"],
   };
-  const actual = getArgs(cmd.split(/\s+/), opt);
+  const actual = getArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
+
 test("example", () => {
   const cmd = "a b -b 2 --baz2 --flag";
   const opt = {
@@ -36,6 +76,6 @@ test("example", () => {
     d: `--baz2:string! piyopiyo(required)`,
     e: `--flag:boolean a flag`,
   } as const;
-  const actual = getArgs(cmd.split(/\s+/), opt);
+  const actual = getArgs(cmd.split(/\s+/), opt, options);
   console.log(actual);
 });
