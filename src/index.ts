@@ -1,3 +1,4 @@
+import { assert } from "console";
 import minimist from "minimist";
 
 type Parsed<S> = S extends `${string}:${infer Type}`
@@ -28,17 +29,65 @@ type ParseFromType<S> = S extends ` ${infer Rest}`
 export class SettingsError extends Error {}
 export class ValidationError extends Error {}
 
+type Type = "boolean" | "number[]" | "number" | "string[]" | "string";
+
+const regex = new RegExp(
+  [
+    // short
+    /^(?:\s*-([a-zA-Z0-9])\s*,)?/,
+    // long
+    /\s*--([a-zA-Z0-9]+)/,
+    // type
+    /\s*:\s*(boolean|number(?:\s*\[\s*\])?|string(?:\s*\[\s*\])?)/,
+    // required or default
+    /(?:\s*(!)|\s*=\s*((?:[^;"]*(?:"(?:[^"\\]|\\.)*")?)*))?/,
+    // description
+    /\s*(?:;\s*(.*))?$/,
+  ]
+    .map((r) => r.source)
+    .join("")
+);
+function parseDefaultValue(long: string, defaultValue: string): any {
+  try {
+    return JSON.parse(defaultValue);
+  } catch (e) {
+    throw new SettingsError(
+      `Could not parse default value of ${long}: ${defaultValue}`
+    );
+  }
+}
+function typeMismatchOfDefaultValue(
+  long: string,
+  type: Type,
+  defaultValue: string
+): never {
+  const what =
+    type === "boolean"
+      ? "a boolean"
+      : type === "number"
+      ? "a number"
+      : type === "number[]"
+      ? "an array of number"
+      : type === "string"
+      ? "a string"
+      : type === "string[]"
+      ? "an array of string"
+      : null;
+  assert(what !== null);
+  throw new SettingsError(
+    `The default value of ${long} should be ${what}: ${defaultValue}`
+  );
+}
 function parseType(
   s: string
 ): {
   short: string | null;
   long: string;
-  type: "boolean" | "number[]" | "number" | "string[]" | "string" | "auto";
+  type: Type;
   required: boolean;
   defaultValue: any;
   description: string;
 } {
-  const regex = /^(?:\s*-([a-zA-Z0-9])\s*,)?\s*--([a-zA-Z0-9]+)\s*:\s*(boolean|number(?:\s*\[\s*\])?|string(?:\s*\[\s*\])?)(?:\s*(!)|\s*=\s*((?:[^;"]*(?:"(?:[^"\\]|\\.)*")?)*))?\s*(?:;\s*(.*))?$/;
   const result = regex.exec(s);
   if (result == null) {
     throw new Error("Syntax Error: " + s);
@@ -69,106 +118,76 @@ function parseType(
   }
   const required = _required === "!";
   let defaultValue = null;
-  if (_defaultValue == null) {
-    defaultValue = null;
-  } else {
-    switch (type) {
-      case "boolean": {
-        if (_defaultValue == null) {
-          defaultValue = false;
-        } else if (_defaultValue === "true") {
-          defaultValue = true;
-        } else if (_defaultValue === "false") {
-          defaultValue = false;
-        } else {
-          throw new SettingsError(
-            `The default value of ${long} should be a boolean: ${_defaultValue}`
-          );
-        }
+  switch (type) {
+    case "boolean": {
+      if (_defaultValue == null) {
+        defaultValue = false;
         break;
       }
-      case "number[]": {
-        const regex = /^\[(.*)\]$/;
-        const result = regex.exec(_defaultValue);
-        if (result == null) {
-          throw new SettingsError("Syntax Error: " + _defaultValue);
-        }
-        const [, inner] = result;
-        const values = [];
-        for (const s of inner.split(",")) {
-          const parsed = parseFloat(s);
-          if (isNaN(parsed)) {
-            throw new SettingsError(
-              `The default value of ${long} should be an array of numbers: ${_defaultValue}`
-            );
-          }
-          values.push(parsed);
-        }
-        defaultValue = values;
+      const json = parseDefaultValue(long, _defaultValue);
+      if (typeof json !== "boolean") {
+        typeMismatchOfDefaultValue(long, type, _defaultValue);
+      }
+      defaultValue = json;
+      break;
+    }
+    case "number[]": {
+      if (_defaultValue == null) {
+        defaultValue = [];
         break;
       }
-      case "number": {
-        if (_defaultValue == null) {
-          defaultValue = null;
-        } else {
-          const parsed = parseFloat(_defaultValue);
-          if (isNaN(parsed)) {
-            throw new SettingsError(
-              `The default value of ${long} should be a number: ${_defaultValue}`
-            );
-          }
-          defaultValue = parsed;
+      const json = parseDefaultValue(long, _defaultValue);
+      if (!Array.isArray(json)) {
+        typeMismatchOfDefaultValue(long, type, _defaultValue);
+      }
+      for (const item of json) {
+        if (typeof item !== "number") {
+          typeMismatchOfDefaultValue(long, type, _defaultValue);
         }
+      }
+      defaultValue = json;
+      break;
+    }
+    case "number": {
+      if (_defaultValue == null) {
+        defaultValue = null;
         break;
       }
-      case "string[]": {
-        const regex = /^\[(.*)\]$/;
-        const result = regex.exec(_defaultValue);
-        if (result == null) {
-          throw new SettingsError("Syntax Error: " + _defaultValue);
-        }
-        const [, inner] = result;
-        const values = [] as string[];
-        for (const s of inner.split(",")) {
-          let json = null;
-          try {
-            json = JSON.parse(s);
-          } catch (e) {
-            throw new SettingsError(
-              `The default value of ${long} should be an array of string: ${_defaultValue}`
-            );
-          }
-          if (typeof json !== "string") {
-            throw new SettingsError(
-              `The default value of ${long} should be an array of string: ${_defaultValue}`
-            );
-          }
-          values.push(json);
-        }
-        defaultValue = values;
+      const json = parseDefaultValue(long, _defaultValue);
+      if (typeof json !== "number") {
+        typeMismatchOfDefaultValue(long, type, _defaultValue);
+      }
+      defaultValue = json;
+      break;
+    }
+    case "string[]": {
+      if (_defaultValue == null) {
+        defaultValue = [];
         break;
       }
-      case "string": {
-        if (_defaultValue == null) {
-          defaultValue = null;
-        } else {
-          let json = null;
-          try {
-            json = JSON.parse(_defaultValue);
-          } catch (e) {
-            throw new SettingsError(
-              `The default value of ${long} should be a string: ${_defaultValue}`
-            );
-          }
-          if (typeof json !== "string") {
-            throw new SettingsError(
-              `The default value of ${long} should be a string: ${_defaultValue}`
-            );
-          }
-          defaultValue = json;
+      const json = parseDefaultValue(long, _defaultValue);
+      if (!Array.isArray(json)) {
+        typeMismatchOfDefaultValue(long, type, _defaultValue);
+      }
+      for (const item of json) {
+        if (typeof item !== "string") {
+          typeMismatchOfDefaultValue(long, type, _defaultValue);
         }
+      }
+      defaultValue = json;
+      break;
+    }
+    case "string": {
+      if (_defaultValue == null) {
+        defaultValue = null;
         break;
       }
+      const json = parseDefaultValue(long, _defaultValue);
+      if (typeof json !== "string") {
+        typeMismatchOfDefaultValue(long, type, _defaultValue);
+      }
+      defaultValue = json;
+      break;
     }
   }
   const description = _description ?? "";

@@ -145,7 +145,6 @@ test("default value", () => {
 
 {
   for (const s of [
-    `--a:boolean!`,
     `--a:number!`,
     `--a:number[]!`,
     `--a:string!`,
@@ -157,6 +156,11 @@ test("default value", () => {
     });
   }
 }
+test("required boolean should be a SettingsError", () => {
+  const opt = { s: "--a:boolean!" } as const;
+  expectError(SettingsError, () => getArgs([], opt, options));
+});
+
 {
   for (const s of [
     `--a:number`,
@@ -172,7 +176,7 @@ test("default value", () => {
 }
 
 {
-  for (const cmd of [`--str=1`, `--str 1`, `-s 1`, `-s1`]) {
+  for (const cmd of [`--str=1`, `-s 1`, `-s1`]) {
     test("string option that has number-like value: " + cmd, () => {
       const opt = { s: "-s,--str:string" } as const;
       const expected = {
@@ -188,12 +192,7 @@ test("default value", () => {
   }
 }
 {
-  for (const cmd of [
-    `--str=1 --str=2`,
-    `--str 1 --str 2`,
-    `-s 1 -s 2`,
-    `-s1 -s2`,
-  ]) {
+  for (const cmd of [`--str=1 --str=2`, `-s 1 -s 2`, `-s1 -s2`]) {
     test("string[] option that has number-like value: " + cmd, () => {
       const opt = { s: "-s,--str:string[]" } as const;
       const expected = {
