@@ -1,15 +1,27 @@
 import { deepStrictEqual, fail } from "assert";
 import { getArgs, SettingsError, ValidationError } from "../src";
 
+let success = 0;
+let error = 0;
+process.on("beforeExit", () => {
+  console.log();
+  console.log("Ran " + (success + error) + " tests.");
+  success && console.log("✅ " + success + " succeeded");
+  error && console.log("❌ " + error + " failed");
+  console.log();
+  process.exit(error);
+});
 function test(name: string, f: Function) {
   try {
     console.log(`testing "${name}" ...`);
     f();
     setTimeout(() => {
+      success++;
       console.log("✅ " + name);
     }, 0);
   } catch (e) {
     setTimeout(() => {
+      error++;
       console.log("❌ " + name);
       console.log("    " + e.message);
     }, 0);
