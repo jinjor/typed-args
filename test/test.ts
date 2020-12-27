@@ -1,5 +1,5 @@
 import { deepStrictEqual, fail } from "assert";
-import { getArgs, SettingsError } from "../src";
+import { getArgs, SettingsError, ValidationError } from "../src";
 
 function test(name: string, f: Function) {
   try {
@@ -16,9 +16,10 @@ function test(name: string, f: Function) {
   }
 }
 function expectError(errorClass: any, f: Function): void {
+  let passed = false;
   try {
     f();
-    fail(`expected ${errorClass.name} to be thrown but no error was thrown`);
+    passed = true;
   } catch (e: any) {
     if (e instanceof errorClass) {
       return;
@@ -27,9 +28,61 @@ function expectError(errorClass: any, f: Function): void {
       `expected ${errorClass.name} to be thrown but got another error: ${e.message}`
     );
   }
+  if (passed) {
+    fail(`expected ${errorClass.name} to be thrown but no error was thrown`);
+  }
 }
 
 const options = { showHelp: false, exitOnError: false };
+
+test("flexible syntax", () => {
+  const opt = {
+    a: ` -n , --num : number [ ] = [ 1 , 2 ]; bla bla `,
+    b: ` --flag : boolean `,
+  } as const;
+  const expected = {
+    targets: [],
+    options: { a: [1, 2], b: false },
+    rest: [],
+  };
+  const actual = getArgs([], opt, options);
+  deepStrictEqual(actual, expected);
+});
+
+test("targets and rest", () => {
+  const cmd = "a b - -- -a --foo";
+  const opt = {} as const;
+  const expected = {
+    targets: ["a", "b", "-"],
+    options: {},
+    rest: ["-a", "--foo"],
+  };
+  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  deepStrictEqual(actual, expected);
+});
+
+test("default value", () => {
+  const opt = {
+    s: `--a:string="; \\""`,
+    sa: `--a:string[]=[ "; \\"" , ",[,]" ]`,
+    n: `--a:number=-0.5`,
+    na: `--a:number[]=[ -0.5 , -1.0 ]`,
+    b: `--a:boolean=true`,
+  } as const;
+  const expected = {
+    targets: [],
+    options: {
+      s: '; "',
+      sa: ['; "', ",[,]"],
+      n: -0.5,
+      na: [-0.5, -1.0],
+      b: true,
+    },
+    rest: [],
+  };
+  const actual = getArgs([], opt, options);
+  deepStrictEqual(actual, expected);
+});
 
 {
   for (const s of [
@@ -48,50 +101,101 @@ const options = { showHelp: false, exitOnError: false };
     `--a:string[]=[true]`,
     `--a:string[]=""`,
   ] as const) {
-    test("invalid default: " + s, () => {
+    test("invalid default value: " + s, () => {
       const opt = { s } as const;
       expectError(SettingsError, () => getArgs([], opt, options));
     });
   }
 }
 
-test("targets and rest", () => {
-  const cmd = "a b - -- -a --foo";
-  const opt = {} as const;
-  const expected = {
-    targets: ["a", "b", "-"],
-    options: {},
-    rest: ["-a", "--foo"],
-  };
-  const actual = getArgs(cmd.split(/\s+/), opt, options);
-  deepStrictEqual(actual, expected);
-});
+{
+  for (const [s, expectedDefaultValue] of [
+    [`--a:string`, null],
+    [`--a:string[]`, []],
+    [`--a:number`, null],
+    [`--a:number[]`, []],
+    [`--a:boolean`, false],
+  ] as const) {
+    test("no default value: " + s, () => {
+      const opt = { s } as const;
+      const expected = {
+        targets: [],
+        options: {
+          s: expectedDefaultValue,
+        },
+        rest: [],
+      };
+      const actual = getArgs([], opt, options);
+      deepStrictEqual(actual, expected);
+    });
+  }
+}
 
-test("flexible syntax", () => {
-  const opt = {
-    n: `-n , --num : number [ ] = [ 1 , 2 ]; bla bla `,
-  } as const;
-  const expected = {
-    targets: [],
-    options: { n: [1, 2] },
-    rest: [],
-  };
-  const actual = getArgs([], opt, options);
-  deepStrictEqual(actual, expected);
-});
+{
+  for (const s of [
+    `--a:boolean!`,
+    `--a:number!`,
+    `--a:number[]!`,
+    `--a:string!`,
+    `--a:string[]!`,
+  ] as const) {
+    test("required value: " + s, () => {
+      const opt = { s } as const;
+      expectError(ValidationError, () => getArgs([], opt, options));
+    });
+  }
+}
+{
+  for (const s of [
+    `--a:number`,
+    `--a:number[]`,
+    `--a:string`,
+    `--a:string[]`,
+  ] as const) {
+    test("non-boolean option that has no value: " + s, () => {
+      const opt = { s } as const;
+      expectError(ValidationError, () => getArgs(["--a"], opt, options));
+    });
+  }
+}
 
-test("string syntax", () => {
-  const opt = {
-    s: `--s:string="; \\""`,
-  } as const;
-  const expected = {
-    targets: [],
-    options: { s: '; "' },
-    rest: [],
-  };
-  const actual = getArgs([], opt, options);
-  deepStrictEqual(actual, expected);
-});
+{
+  for (const cmd of [`--str=1`, `--str 1`, `-s 1`, `-s1`]) {
+    test("string option that has number-like value: " + cmd, () => {
+      const opt = { s: "-s,--str:string" } as const;
+      const expected = {
+        targets: [],
+        options: {
+          s: "1",
+        },
+        rest: [],
+      };
+      const actual = getArgs(cmd.split(/\s+/), opt, options);
+      deepStrictEqual(actual, expected);
+    });
+  }
+}
+{
+  for (const cmd of [
+    `--str=1 --str=2`,
+    `--str 1 --str 2`,
+    `-s 1 -s 2`,
+    `-s1 -s2`,
+  ]) {
+    test("string[] option that has number-like value: " + cmd, () => {
+      const opt = { s: "-s,--str:string[]" } as const;
+      const expected = {
+        targets: [],
+        options: {
+          s: ["1", "2"],
+        },
+        rest: [],
+      };
+      const actual = getArgs(cmd.split(/\s+/), opt, options);
+      deepStrictEqual(actual, expected);
+    });
+  }
+}
 
 test("example", () => {
   const cmd = "a b -b 2 --baz2 --flag";
