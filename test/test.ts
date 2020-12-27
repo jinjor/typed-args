@@ -69,33 +69,38 @@ test("targets and rest", () => {
 
 test("flexible syntax", () => {
   const opt = {
-    s: `-n , --num : number [ ] = [ 1 , 2 ] bla bla `,
-  } as const;
-  getArgs([], opt, options);
-});
-
-test("string syntax", () => {
-  const cmd = "";
-  const opt = {
-    s: `--s=" "`,
+    n: `-n , --num : number [ ] = [ 1 , 2 ]; bla bla `,
   } as const;
   const expected = {
     targets: [],
-    options: { s: " " },
+    options: { n: [1, 2] },
     rest: [],
   };
-  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  const actual = getArgs([], opt, options);
+  deepStrictEqual(actual, expected);
+});
+
+test("string syntax", () => {
+  const opt = {
+    s: `--s:string="; \\""`,
+  } as const;
+  const expected = {
+    targets: [],
+    options: { s: '; "' },
+    rest: [],
+  };
+  const actual = getArgs([], opt, options);
   deepStrictEqual(actual, expected);
 });
 
 test("example", () => {
   const cmd = "a b -b 2 --baz2 --flag";
   const opt = {
-    a: `--foo:number[]=[42] hogehoge`,
-    b: `-b,--bar:number=42 fugafuga`,
-    c: `--baz:string piyopiyo"`,
-    d: `--baz2:string! piyopiyo(required)`,
-    e: `--flag:boolean a flag`,
+    a: `--foo:number[]=[42]; hogehoge`,
+    b: `-b,--bar:number=42; fugafuga`,
+    c: `--baz:string; piyopiyo"`,
+    d: `--baz2:string!; piyopiyo(required)`,
+    e: `--flag:boolean; a flag`,
   } as const;
   const actual = getArgs(cmd.split(/\s+/), opt, options);
   console.log(actual);

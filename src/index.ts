@@ -1,26 +1,28 @@
 import minimist from "minimist";
 
-type Parsed<S> = S extends `${infer Left} ${string}`
-  ? ParseTypeWithDefault<Left>
-  : ParseTypeWithDefault<S>;
-type ParseTypeWithDefault<S> = S extends `${string}:${infer Type}=${string}`
-  ? ParseType<Type>
-  : S extends `${string}:${infer Type}!`
-  ? ParseType<Type>
-  : S extends `${string}:${infer Type}`
-  ? Optional<ParseType<Type>>
+type Parsed<S> = S extends `${string}:${infer Type}`
+  ? ParseFromType<Type>
   : never;
 type Optional<T> = T extends boolean ? boolean : T | null;
-type ParseType<S> = S extends `boolean`
-  ? boolean
-  : S extends `number[]`
-  ? number[]
-  : S extends `number`
-  ? number
-  : S extends `string[]`
-  ? string[]
-  : S extends `string`
-  ? string
+type ParseAfterType<T, S> = S extends ` ${infer Rest}`
+  ? ParseAfterType<T, Rest>
+  : S extends `=${string}`
+  ? T
+  : S extends `!${string}`
+  ? T
+  : Optional<T>;
+type ParseFromType<S> = S extends ` ${infer Rest}`
+  ? ParseFromType<Rest>
+  : S extends `boolean${infer Next}`
+  ? ParseAfterType<boolean, Next>
+  : S extends `number[]${infer Next}`
+  ? ParseAfterType<number[], Next>
+  : S extends `number${infer Next}`
+  ? ParseAfterType<number, Next>
+  : S extends `string[]${infer Next}`
+  ? ParseAfterType<string[], Next>
+  : S extends `string${infer Next}`
+  ? ParseAfterType<string, Next>
   : never;
 
 export class SettingsError extends Error {}
@@ -36,35 +38,31 @@ function parseType(
   defaultValue: any;
   description: string;
 } {
-  const regex = /^(-([a-zA-Z0-9]),)?--([a-zA-Z0-9]+):(boolean|number(\[\])?|string(\[\])?)((!)|=([^ ]*))?( (.*))?$/;
+  const regex = /^(?:\s*-([a-zA-Z0-9])\s*,)?\s*--([a-zA-Z0-9]+)\s*:\s*(boolean|number(?:\s*\[\s*\])?|string(?:\s*\[\s*\])?)(?:\s*(!)|\s*=\s*((?:[^;"]*(?:"(?:[^"\\]|\\.)*")?)*))?\s*(?:;\s*(.*))?$/;
   const result = regex.exec(s);
   if (result == null) {
     throw new Error("Syntax Error: " + s);
   }
   const [
     ,
-    ,
     _short,
     _long,
     _type,
-    ,
-    ,
-    ,
     _required,
     _defaultValue,
-    ,
     _description,
   ] = result;
   const short = _short ?? null;
   const long = _long;
+  const __type = _type.replace(/\s+/g, "");
   let type = null;
-  switch (_type) {
+  switch (__type) {
     case "boolean":
     case "number[]":
     case "number":
     case "string[]":
     case "string":
-      type = _type;
+      type = __type;
       break;
     default:
       throw new SettingsError("Unknown type: " + _type);
