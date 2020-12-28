@@ -235,7 +235,6 @@ export function getArgs<T extends Record<string, string>>(
     ...options,
   };
   const minimistOptions = {
-    string: [] as string[],
     boolean: true,
     default: {} as Record<string, string>,
     alias: {} as Record<string, string>,
@@ -247,9 +246,6 @@ export function getArgs<T extends Record<string, string>>(
     const { short, long, type, defaultValue } = defs[key];
     if (short != null) {
       minimistOptions.alias[long] = short;
-    }
-    if (type === "string" || type === "string[]") {
-      minimistOptions.string.push(long);
     }
     if (defaultValue != null) {
       minimistOptions.default[long] = defaultValue;
@@ -297,16 +293,25 @@ export function getArgs<T extends Record<string, string>>(
           throw new ValidationError(long + " should not have multiple values");
         }
         if (typeof value !== "string") {
-          throw new ValidationError(long + " should be a string");
+          if (typeof value === "number") {
+            value = String(value);
+          } else {
+            throw new ValidationError(long + " should be a string");
+          }
         }
       } else if (type === "string[]") {
         const values = Array.isArray(value) ? value : [value];
         value = values;
-        for (const v of values) {
+        for (let i = 0; i < values.length; i++) {
+          const v = values[i];
           if (typeof v !== "string") {
-            throw new ValidationError(
-              "All value of " + long + " should be a string"
-            );
+            if (typeof v === "number") {
+              value[i] = String(v);
+            } else {
+              throw new ValidationError(
+                "All value of " + long + " should be a string"
+              );
+            }
           }
         }
       }

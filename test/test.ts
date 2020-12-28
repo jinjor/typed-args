@@ -174,6 +174,16 @@ test("targets and rest", () => {
   }
 }
 
+test("boolean option that has value", () => {
+  const opt = { s: "-a,--foo:boolean" } as const;
+  expectError(ValidationError, () => getArgs(["--foo="], opt, options));
+});
+
+test("boolean short option that has value", () => {
+  const opt = { s: "-a,--foo:boolean" } as const;
+  expectError(ValidationError, () => getArgs(["-a1"], opt, options));
+});
+
 {
   for (const s of [
     `--a:number`,
@@ -187,6 +197,48 @@ test("targets and rest", () => {
     });
   }
 }
+
+{
+  for (const s of [
+    `-a,--foo:number`,
+    `-a,--foo:number[]`,
+    `-a,--foo:string`,
+    `-a,--foo:string[]`,
+  ] as const) {
+    test("non-boolean short option that has no value: " + s, () => {
+      const opt = { s } as const;
+      expectError(ValidationError, () => getArgs(["-a"], opt, options));
+    });
+  }
+}
+
+test("empty string", () => {
+  const cmd = "--str=";
+  const opt = { s: "--str:string" } as const;
+  const expected = {
+    targets: [],
+    options: {
+      s: "",
+    },
+    rest: [],
+  };
+  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  deepStrictEqual(actual, expected);
+});
+
+test("empty string array", () => {
+  const cmd = "--str= --str=";
+  const opt = { s: "--str:string[]" } as const;
+  const expected = {
+    targets: [],
+    options: {
+      s: ["", ""],
+    },
+    rest: [],
+  };
+  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  deepStrictEqual(actual, expected);
+});
 
 {
   for (const cmd of [`--str=1`, `-s 1`, `-s1`]) {
@@ -260,7 +312,7 @@ test("targets and rest", () => {
 }
 
 test("example", () => {
-  const cmd = "a b -b 2 --baz2 --flag";
+  const cmd = "a b -b 2 --baz2=1 --flag";
   const opt = {
     a: `--foo:number[]=[42]; hogehoge`,
     b: `-b,--bar:number=42; fugafuga`,
