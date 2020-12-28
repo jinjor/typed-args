@@ -218,6 +218,70 @@ function parseDefinition(s: string): ParsedDefinition {
   };
 }
 
+function validate(parsed: any, defs: ParsedDefinitions): Record<string, any> {
+  const result = {} as Record<string, any>;
+  for (const key in defs) {
+    const { long, type, required } = defs[key];
+    let value = parsed[long];
+    if (value == null) {
+      if (required) {
+        throw new ValidationError(long + " is required");
+      }
+      value = null;
+    } else if (type === "boolean") {
+      if (Array.isArray(value)) {
+        throw new ValidationError(long + " should not have multiple values");
+      }
+      if (typeof value !== "boolean") {
+        throw new ValidationError(long + " should be a boolean");
+      }
+    } else if (type === "number") {
+      if (Array.isArray(value)) {
+        throw new ValidationError(long + " should not have multiple values");
+      }
+      if (typeof value !== "number") {
+        throw new ValidationError(long + " should be a number");
+      }
+    } else if (type === "number[]") {
+      value = Array.isArray(value) ? value : [value];
+      for (const v of value) {
+        if (typeof v !== "number") {
+          throw new ValidationError(
+            "All value of " + long + " should be a number"
+          );
+        }
+      }
+    } else if (type === "string") {
+      if (Array.isArray(value)) {
+        throw new ValidationError(long + " should not have multiple values");
+      }
+      if (typeof value !== "string") {
+        if (typeof value === "number") {
+          value = String(value);
+        } else {
+          throw new ValidationError(long + " should be a string");
+        }
+      }
+    } else if (type === "string[]") {
+      value = Array.isArray(value) ? value : [value];
+      for (let i = 0; i < value.length; i++) {
+        const v = value[i];
+        if (typeof v !== "string") {
+          if (typeof v === "number") {
+            value[i] = String(v);
+          } else {
+            throw new ValidationError(
+              "All value of " + long + " should be a string"
+            );
+          }
+        }
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
 export function getArgs<T extends Record<string, string>>(
   args: string[],
   definitions: T,
@@ -241,9 +305,8 @@ export function getArgs<T extends Record<string, string>>(
     "--": true,
   };
   const defs = parseDefinitions(definitions);
-
   for (const key in defs) {
-    const { short, long, type, defaultValue } = defs[key];
+    const { short, long, defaultValue } = defs[key];
     if (short != null) {
       minimistOptions.alias[long] = short;
     }
@@ -254,69 +317,12 @@ export function getArgs<T extends Record<string, string>>(
   const parsed = minimist(args, minimistOptions);
   const targets = parsed._;
   const rest = parsed["--"]!;
-  const validatedOptions = {} as Record<string, any>;
   try {
-    for (const key in defs) {
-      const { long, type, required } = defs[key];
-      let value = parsed[long];
-      if (value == null) {
-        if (required) {
-          throw new ValidationError(long + " is required");
-        }
-        value = null;
-      } else if (type === "boolean") {
-        if (Array.isArray(value)) {
-          throw new ValidationError(long + " should not have multiple values");
-        }
-        if (typeof value !== "boolean") {
-          throw new ValidationError(long + " should be a boolean");
-        }
-      } else if (type === "number") {
-        if (Array.isArray(value)) {
-          throw new ValidationError(long + " should not have multiple values");
-        }
-        if (typeof value !== "number") {
-          throw new ValidationError(long + " should be a number");
-        }
-      } else if (type === "number[]") {
-        const values = Array.isArray(value) ? value : [value];
-        value = values;
-        for (const v of values) {
-          if (typeof v !== "number") {
-            throw new ValidationError(
-              "All value of " + long + " should be a number"
-            );
-          }
-        }
-      } else if (type === "string") {
-        if (Array.isArray(value)) {
-          throw new ValidationError(long + " should not have multiple values");
-        }
-        if (typeof value !== "string") {
-          if (typeof value === "number") {
-            value = String(value);
-          } else {
-            throw new ValidationError(long + " should be a string");
-          }
-        }
-      } else if (type === "string[]") {
-        const values = Array.isArray(value) ? value : [value];
-        value = values;
-        for (let i = 0; i < values.length; i++) {
-          const v = values[i];
-          if (typeof v !== "string") {
-            if (typeof v === "number") {
-              value[i] = String(v);
-            } else {
-              throw new ValidationError(
-                "All value of " + long + " should be a string"
-              );
-            }
-          }
-        }
-      }
-      validatedOptions[key] = value;
-    }
+    return {
+      targets,
+      rest,
+      options: validate(parsed, defs) as any,
+    };
   } catch (e) {
     if (e instanceof ValidationError) {
       if (showHelp) {
@@ -331,9 +337,4 @@ export function getArgs<T extends Record<string, string>>(
     }
     throw e;
   }
-  return {
-    targets,
-    rest,
-    options: validatedOptions as any,
-  };
 }
