@@ -265,6 +265,17 @@ test("empty string array", () => {
   }
 }
 
+{
+  for (const cmd of ["-a", "-a1", "-a 1", "--aa", "--aa=", "--aa=1"] as const) {
+    test("unknown options: " + cmd, () => {
+      const opt = {} as const;
+      expectError(ValidationError, () =>
+        getArgs(cmd.split(/\s+/), opt, options)
+      );
+    });
+  }
+}
+
 test("example", () => {
   const cmd = "a b -b 2 --baz2=1 --flag";
   const opt = {
