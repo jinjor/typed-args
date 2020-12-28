@@ -73,28 +73,41 @@ test("targets and rest", () => {
   deepStrictEqual(actual, expected);
 });
 
-test("default value", () => {
-  const opt = {
-    s: `--a:string="; \\""`,
-    sa: `--a:string[]=[ "; \\"" , ",[,]" ]`,
-    n: `--a:number=-0.5`,
-    na: `--a:number[]=[ -0.5 , -1.0 ]`,
-    b: `--a:boolean=true`,
-  } as const;
-  const expected = {
-    targets: [],
-    options: {
-      s: '; "',
-      sa: ['; "', ",[,]"],
-      n: -0.5,
-      na: [-0.5, -1.0],
-      b: true,
-    },
-    rest: [],
-  };
-  const actual = getArgs([], opt, options);
-  deepStrictEqual(actual, expected);
-});
+{
+  for (const [a, b] of [
+    [`--a:boolean`, `--a:string`],
+    [`-a,--b:boolean`, `--a:string`],
+    [`-a,--b:boolean`, `-a,--c:string`],
+  ] as const) {
+    test("duplicated options: " + a, () => {
+      const opt = { a, b } as const;
+      expectError(SettingsError, () => getArgs([], opt, options));
+    });
+  }
+}
+
+{
+  for (const [a, expectedValue] of [
+    [`--a:string="; \\""`, '; "'],
+    [`--a:string[]=[ "; \\"" , ",[,]" ]`, ['; "', ",[,]"]],
+    [`--a:number=-0.5`, -0.5],
+    [`--a:number[]=[ -0.5 , -1.0 ]`, [-0.5, -1.0]],
+    [`--a:boolean=true`, true],
+  ] as const) {
+    test("default value: " + a, () => {
+      const opt = { a } as const;
+      const expected = {
+        targets: [],
+        options: {
+          a: expectedValue,
+        },
+        rest: [],
+      };
+      const actual = getArgs([], opt, options);
+      deepStrictEqual(actual, expected);
+    });
+  }
+}
 
 {
   for (const s of [
@@ -144,22 +157,22 @@ test("default value", () => {
 }
 
 {
-  for (const s of [
-    `--a:number!`,
-    `--a:number[]!`,
-    `--a:string!`,
-    `--a:string[]!`,
-  ] as const) {
-    test("required value: " + s, () => {
-      const opt = { s } as const;
+  for (const a of [`--a:number!`, `--a:string!`] as const) {
+    test("required value: " + a, () => {
+      const opt = { a } as const;
       expectError(ValidationError, () => getArgs([], opt, options));
     });
   }
 }
-test("required boolean should be a SettingsError", () => {
-  const opt = { s: "--a:boolean!" } as const;
-  expectError(SettingsError, () => getArgs([], opt, options));
-});
+
+{
+  for (const a of [`--a:boolean!`, `--a:number[]!`, `--a:string[]!`] as const) {
+    test("required types that have non-null defaults: " + a, () => {
+      const opt = { a } as const;
+      getArgs([], opt, options);
+    });
+  }
+}
 
 {
   for (const s of [
@@ -232,9 +245,10 @@ test("required boolean should be a SettingsError", () => {
 
 {
   for (const [a, cmd] of [
-    ["--a:boolean", "--a,--a"],
+    // ["--a:boolean", "--a,--a"],
     ["--a:string", "--a=foo --a=bar"],
-    ["--a:number", "--a=1,--a=2"],
+    ["-a,--aa:string", "-a foo --aa=bar"],
+    ["-a,--aa:number", "-a 1,--aa=2"],
   ] as const) {
     test("multiple values for non-array types: " + a, () => {
       const opt = { a } as const;
