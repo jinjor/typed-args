@@ -78,16 +78,41 @@ function typeMismatchOfDefaultValue(
     `The default value of ${long} should be ${what}: ${defaultValue}`
   );
 }
-function parseType(
-  s: string
-): {
+type ParsedDefinition = {
   short: string | null;
   long: string;
   type: Type;
   required: boolean;
   defaultValue: any;
   description: string;
-} {
+};
+type ParsedDefinitions = {
+  [key: string]: ParsedDefinition;
+};
+function parseDefinitions(types: { [key: string]: string }): ParsedDefinitions {
+  const result: ParsedDefinitions = {};
+  const keys: Set<string> = new Set();
+  const dups: string[] = [];
+  for (const key in types) {
+    const t = parseDefinition(types[key]);
+    if (t.short != null) {
+      if (keys.has(t.short)) {
+        dups.push(t.short);
+      }
+      keys.add(t.short);
+    }
+    if (keys.has(t.long)) {
+      dups.push(t.long);
+    }
+    keys.add(t.long);
+    result[key] = t;
+  }
+  if (dups.length > 0) {
+    throw new SettingsError("Duplicated keys found: " + dups.join(", "));
+  }
+  return result;
+}
+function parseDefinition(s: string): ParsedDefinition {
   const result = regex.exec(s);
   if (result == null) {
     throw new Error("Syntax Error: " + s);
@@ -203,7 +228,7 @@ function parseType(
 
 export function getArgs<T extends Record<string, string>>(
   args: string[],
-  types: T,
+  definitions: T,
   options?: { showHelp?: boolean; exitOnError?: boolean }
 ): {
   targets: string[];
@@ -224,10 +249,10 @@ export function getArgs<T extends Record<string, string>>(
     alias: {} as Record<string, string>,
     "--": true,
   };
+  const defs = parseDefinitions(definitions);
 
-  for (const key in types) {
-    const t = parseType(types[key]);
-    const { short, long, type, defaultValue } = t;
+  for (const key in defs) {
+    const { short, long, type, defaultValue } = defs[key];
     if (short != null) {
       minimistOptions.alias[long] = short;
     }
@@ -243,9 +268,8 @@ export function getArgs<T extends Record<string, string>>(
   const rest = parsed["--"]!;
   const validatedOptions = {} as Record<string, any>;
   try {
-    for (const key in types) {
-      const t = parseType(types[key]);
-      const { long, type, required } = t;
+    for (const key in defs) {
+      const { long, type, required } = defs[key];
       let value = parsed[long];
       if (value == null) {
         if (required) {
@@ -292,9 +316,8 @@ export function getArgs<T extends Record<string, string>>(
   } catch (e) {
     if (e instanceof ValidationError) {
       if (showHelp) {
-        for (const key in types) {
-          const t = parseType(types[key]);
-          const { description } = t;
+        for (const key in defs) {
+          const { description } = defs[key];
           console.error(description);
         }
       }
