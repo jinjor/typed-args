@@ -191,6 +191,7 @@ test("required boolean should be a SettingsError", () => {
     });
   }
 }
+
 {
   for (const cmd of [`--str=1 --str=2`, `-s 1 -s 2`, `-s1 -s2`]) {
     test("string[] option that has number-like value: " + cmd, () => {
@@ -204,6 +205,42 @@ test("required boolean should be a SettingsError", () => {
       };
       const actual = getArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
+    });
+  }
+}
+
+{
+  for (const [a, expectedValue] of [
+    [`--a:string[]`, ["1"]],
+    [`--a:number[]`, [1]],
+  ] as const) {
+    test("single value for array types: " + a, () => {
+      const cmd = "--a=1";
+      const opt = { a } as const;
+      const expected = {
+        targets: [],
+        options: {
+          a: expectedValue,
+        },
+        rest: [],
+      };
+      const actual = getArgs(cmd.split(/\s+/), opt, options);
+      deepStrictEqual(actual, expected);
+    });
+  }
+}
+
+{
+  for (const [a, cmd] of [
+    ["--a:boolean", "--a,--a"],
+    ["--a:string", "--a=foo --a=bar"],
+    ["--a:number", "--a=1,--a=2"],
+  ] as const) {
+    test("multiple values for non-array types: " + a, () => {
+      const opt = { a } as const;
+      expectError(ValidationError, () =>
+        getArgs(cmd.split(/\s+/), opt, options)
+      );
     });
   }
 }
