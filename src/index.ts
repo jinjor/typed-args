@@ -31,22 +31,6 @@ export class ValidationError extends Error {}
 
 type Type = "boolean" | "number[]" | "number" | "string[]" | "string";
 
-const regex = new RegExp(
-  [
-    // short
-    /^(?:\s*-([a-zA-Z0-9])\s*,)?/,
-    // long
-    /\s*--([a-zA-Z0-9]+)/,
-    // type
-    /\s*:\s*(boolean|number(?:\s*\[\s*\])?|string(?:\s*\[\s*\])?)/,
-    // required or default
-    /(?:\s*(!)|\s*=\s*((?:[^;"]*(?:"(?:[^"\\]|\\.)*")?)*))?/,
-    // description
-    /\s*(?:;\s*(.*))?$/,
-  ]
-    .map((r) => r.source)
-    .join("")
-);
 function parseDefaultValue(long: string, defaultValue: string): any {
   try {
     return JSON.parse(defaultValue);
@@ -112,8 +96,82 @@ function parseDefinitions(types: { [key: string]: string }): ParsedDefinitions {
   }
   return result;
 }
+function defaultValueOf(type: Type): any {
+  switch (type) {
+    case "boolean":
+      return false;
+    case "number[]":
+      return [];
+    case "number":
+      return null;
+    case "string[]":
+      return [];
+    case "string":
+      return null;
+  }
+}
+function isDefaultValueCorrectType(type: Type, json: any): boolean {
+  switch (type) {
+    case "boolean": {
+      if (typeof json !== "boolean") {
+        return false;
+      }
+      return true;
+    }
+    case "number[]": {
+      if (!Array.isArray(json)) {
+        return false;
+      }
+      for (const item of json) {
+        if (typeof item !== "number") {
+          return false;
+        }
+      }
+      return true;
+    }
+    case "number": {
+      if (typeof json !== "number") {
+        return false;
+      }
+      return true;
+    }
+    case "string[]": {
+      if (!Array.isArray(json)) {
+        return false;
+      }
+      for (const item of json) {
+        if (typeof item !== "string") {
+          return false;
+        }
+      }
+      return true;
+    }
+    case "string": {
+      if (typeof json !== "string") {
+        return false;
+      }
+      return true;
+    }
+  }
+}
+const definitionRegex = new RegExp(
+  [
+    // short
+    /^(?:\s*-([a-zA-Z0-9])\s*,)?/,
+    // long
+    /\s*--([a-zA-Z0-9]+)/,
+    // type
+    /\s*:\s*(boolean|number(?:\s*\[\s*\])?|string(?:\s*\[\s*\])?)/,
+    // required or default
+    /(?:\s*(!)|\s*=\s*((?:[^;"]*(?:"(?:[^"\\]|\\.)*")?)*))?/,
+    // description
+    /\s*(?:;\s*(.*))?$/,
+  ]
+    .map((r) => r.source)
+    .join("")
+);
 function parseDefinition(s: string): ParsedDefinition {
-  const result = regex.exec(s);
+  const result = definitionRegex.exec(s);
   if (result == null) {
     throw new Error("Syntax Error: " + s);
   }
@@ -142,77 +200,11 @@ function parseDefinition(s: string): ParsedDefinition {
       throw new SettingsError("Unknown type: " + _type);
   }
   const required = _required === "!";
-  let defaultValue = null;
-  switch (type) {
-    case "boolean": {
-      if (_defaultValue == null) {
-        defaultValue = false;
-        break;
-      }
-      const json = parseDefaultValue(long, _defaultValue);
-      if (typeof json !== "boolean") {
-        typeMismatchOfDefaultValue(long, type, _defaultValue);
-      }
-      defaultValue = json;
-      break;
-    }
-    case "number[]": {
-      if (_defaultValue == null) {
-        defaultValue = [];
-        break;
-      }
-      const json = parseDefaultValue(long, _defaultValue);
-      if (!Array.isArray(json)) {
-        typeMismatchOfDefaultValue(long, type, _defaultValue);
-      }
-      for (const item of json) {
-        if (typeof item !== "number") {
-          typeMismatchOfDefaultValue(long, type, _defaultValue);
-        }
-      }
-      defaultValue = json;
-      break;
-    }
-    case "number": {
-      if (_defaultValue == null) {
-        defaultValue = null;
-        break;
-      }
-      const json = parseDefaultValue(long, _defaultValue);
-      if (typeof json !== "number") {
-        typeMismatchOfDefaultValue(long, type, _defaultValue);
-      }
-      defaultValue = json;
-      break;
-    }
-    case "string[]": {
-      if (_defaultValue == null) {
-        defaultValue = [];
-        break;
-      }
-      const json = parseDefaultValue(long, _defaultValue);
-      if (!Array.isArray(json)) {
-        typeMismatchOfDefaultValue(long, type, _defaultValue);
-      }
-      for (const item of json) {
-        if (typeof item !== "string") {
-          typeMismatchOfDefaultValue(long, type, _defaultValue);
-        }
-      }
-      defaultValue = json;
-      break;
-    }
-    case "string": {
-      if (_defaultValue == null) {
-        defaultValue = null;
-        break;
-      }
-      const json = parseDefaultValue(long, _defaultValue);
-      if (typeof json !== "string") {
-        typeMismatchOfDefaultValue(long, type, _defaultValue);
-      }
-      defaultValue = json;
-      break;
+  let defaultValue = defaultValueOf(type);
+  if (_defaultValue != null) {
+    defaultValue = parseDefaultValue(long, _defaultValue);
+    if (!isDefaultValueCorrectType(type, defaultValue)) {
+      typeMismatchOfDefaultValue(long, type, _defaultValue);
     }
   }
   const description = _description ?? "";
@@ -276,6 +268,13 @@ export function getArgs<T extends Record<string, string>>(
           throw new ValidationError(long + " is required");
         }
         value = null;
+      } else if (type === "boolean") {
+        if (Array.isArray(value)) {
+          throw new ValidationError(long + " should not have multiple values");
+        }
+        if (typeof value !== "boolean") {
+          throw new ValidationError(long + " should be a boolean");
+        }
       } else if (type === "number") {
         if (Array.isArray(value)) {
           throw new ValidationError(long + " should not have multiple values");
