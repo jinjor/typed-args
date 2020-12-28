@@ -52,12 +52,8 @@ test("flexible syntax", () => {
     a: ` -n , --num : number [ ] = [ 1 , 2 ]; bla bla `,
     b: ` --flag : boolean `,
   } as const;
-  const expected = {
-    targets: [],
-    options: { a: [1, 2], b: false },
-    rest: [],
-  };
-  const actual = getArgs([], opt, options);
+  const expected = { a: [1, 2], b: false };
+  const { options: actual } = getArgs([], opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -96,14 +92,8 @@ test("targets and rest", () => {
   ] as const) {
     test("default value: " + a, () => {
       const opt = { a } as const;
-      const expected = {
-        targets: [],
-        options: {
-          a: expectedValue,
-        },
-        rest: [],
-      };
-      const actual = getArgs([], opt, options);
+      const expected = { a: expectedValue };
+      const { options: actual } = getArgs([], opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -143,14 +133,8 @@ test("targets and rest", () => {
   ] as const) {
     test("no default value: " + s, () => {
       const opt = { s } as const;
-      const expected = {
-        targets: [],
-        options: {
-          s: expectedDefaultValue,
-        },
-        rest: [],
-      };
-      const actual = getArgs([], opt, options);
+      const expected = { s: expectedDefaultValue };
+      const { options: actual } = getArgs([], opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -215,28 +199,16 @@ test("boolean short option that has value", () => {
 test("empty string", () => {
   const cmd = "--str=";
   const opt = { s: "--str:string" } as const;
-  const expected = {
-    targets: [],
-    options: {
-      s: "",
-    },
-    rest: [],
-  };
-  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  const expected = { s: "" };
+  const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
 
 test("empty string array", () => {
   const cmd = "--str= --str=";
   const opt = { s: "--str:string[]" } as const;
-  const expected = {
-    targets: [],
-    options: {
-      s: ["", ""],
-    },
-    rest: [],
-  };
-  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  const expected = { s: ["", ""] };
+  const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -244,14 +216,8 @@ test("empty string array", () => {
   for (const cmd of [`--str=1`, `-s 1`, `-s1`]) {
     test("string option that has number-like value: " + cmd, () => {
       const opt = { s: "-s,--str:string" } as const;
-      const expected = {
-        targets: [],
-        options: {
-          s: "1",
-        },
-        rest: [],
-      };
-      const actual = getArgs(cmd.split(/\s+/), opt, options);
+      const expected = { s: "1" };
+      const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -261,14 +227,8 @@ test("empty string array", () => {
   for (const cmd of [`--str=1 --str=2`, `-s 1 -s 2`, `-s1 -s2`]) {
     test("string[] option that has number-like value: " + cmd, () => {
       const opt = { s: "-s,--str:string[]" } as const;
-      const expected = {
-        targets: [],
-        options: {
-          s: ["1", "2"],
-        },
-        rest: [],
-      };
-      const actual = getArgs(cmd.split(/\s+/), opt, options);
+      const expected = { s: ["1", "2"] };
+      const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -282,14 +242,8 @@ test("empty string array", () => {
     test("single value for array types: " + a, () => {
       const cmd = "--a=1";
       const opt = { a } as const;
-      const expected = {
-        targets: [],
-        options: {
-          a: expectedValue,
-        },
-        rest: [],
-      };
-      const actual = getArgs(cmd.split(/\s+/), opt, options);
+      const expected = { a: expectedValue };
+      const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
     });
   }
