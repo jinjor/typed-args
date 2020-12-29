@@ -231,43 +231,48 @@ function validate(
       shortToType.set(short, type);
     }
     let value = parsed[long];
+    const shortName = short != null && parsed[short] ? `-${short}` : null;
+    const longName = `--${long}`;
+    const name = shortName ?? longName;
+
     if (value == null) {
       if (required) {
-        throw new ValidationError(long + " is required");
+        const n = `${shortName != null ? shortName + " or " : ""}${longName}`;
+        throw new ValidationError(n + " is required");
       }
       value = null;
     } else if (type === "boolean") {
       if (Array.isArray(value)) {
-        throw new ValidationError(long + " should not have multiple values");
+        throw new ValidationError(name + " should not have multiple values");
       }
       if (typeof value !== "boolean") {
-        throw new ValidationError(long + " should be a boolean");
+        throw new ValidationError(name + " should be a boolean");
       }
     } else if (type === "number") {
       if (Array.isArray(value)) {
-        throw new ValidationError(long + " should not have multiple values");
+        throw new ValidationError(name + " should not have multiple values");
       }
       if (typeof value !== "number") {
-        throw new ValidationError(long + " should be a number");
+        throw new ValidationError(name + " should be a number");
       }
     } else if (type === "number[]") {
       value = Array.isArray(value) ? value : [value];
       for (const v of value) {
         if (typeof v !== "number") {
           throw new ValidationError(
-            "All value of " + long + " should be a number"
+            "All value of " + name + " should be a number"
           );
         }
       }
     } else if (type === "string") {
       if (Array.isArray(value)) {
-        throw new ValidationError(long + " should not have multiple values");
+        throw new ValidationError(name + " should not have multiple values");
       }
       if (typeof value !== "string") {
         if (typeof value === "number") {
           value = String(value);
         } else {
-          throw new ValidationError(long + " should be a string");
+          throw new ValidationError(name + " should be a string");
         }
       }
     } else if (type === "string[]") {
@@ -279,7 +284,7 @@ function validate(
             value[i] = String(v);
           } else {
             throw new ValidationError(
-              "All value of " + long + " should be a string"
+              "All value of " + name + " should be a string"
             );
           }
         }
@@ -309,19 +314,49 @@ function validate(
   return result;
 }
 
+function makeHelp(usage: string | null, defs: ParsedDefinitions) {
+  let s = usage ? `Usage: ${usage}\n` : "";
+  let maxLength = 0;
+  const info: [string, string][] = [];
+  for (const key in defs) {
+    const d = defs[key];
+    const short = d.short ? `-${d.short}, ` : "";
+    const type = d.type === "boolean" ? "" : ` <${d.type.replace("[]", "")}>`;
+    const long = `--${d.long}`;
+    const left = `${short}${long}${type}`;
+    const extra = d.required
+      ? ` (required)`
+      : d.defaultValue
+      ? ` (default:${JSON.stringify(d.defaultValue)})`
+      : "";
+    const right = `${d.description}${extra}`;
+    info.push([left, right]);
+    maxLength = Math.max(left.length, maxLength);
+  }
+  if (info.length > 0) {
+    s += "Options:\n";
+  }
+  for (const [left, description] of info) {
+    s += `  ${left.padEnd(maxLength)} ${description}\n`;
+  }
+  return s;
+}
+
+type Help<T> = (exit: T) => T extends true ? never : string;
 export function getArgs<T extends Record<string, string>>(
   args: string[],
   definitions: T,
-  options?: { showHelp?: boolean; exitOnError?: boolean }
+  options?: { usage?: string; exitOnError?: boolean }
 ): {
   targets: string[];
   options: {
     [K in keyof T]: Parsed<T[K]>;
   };
   rest: string[];
+  help: Help<boolean>;
 } {
-  const { showHelp, exitOnError } = {
-    showHelp: true,
+  const { usage, exitOnError } = {
+    usage: null,
     exitOnError: true,
     ...options,
   };
@@ -347,22 +382,25 @@ export function getArgs<T extends Record<string, string>>(
   const parsed = minimist(args, minimistOptions);
   const targets = parsed._;
   const rest = parsed["--"]!;
+  const help: Help<boolean> = (exit = true) => {
+    const s = makeHelp(usage, defs);
+    if (exit) {
+      console.error(s);
+      process.exit(1);
+    }
+    return s;
+  };
   try {
     return {
       targets,
       rest,
       options: validate(args, parsed, defs) as any,
+      help,
     };
   } catch (e) {
     if (e instanceof ValidationError) {
-      if (showHelp) {
-        for (const key in defs) {
-          const { description } = defs[key];
-          console.error(description);
-        }
-      }
       if (exitOnError) {
-        process.exit(1);
+        help(true);
       }
     }
     throw e;

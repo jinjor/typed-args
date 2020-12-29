@@ -13,7 +13,7 @@ process.on("beforeExit", () => {
 });
 function test(name: string, f: Function) {
   try {
-    console.log(`testing "${name}" ...`);
+    console.log(`🔹 testing "${name}" ...`);
     f();
     setTimeout(() => {
       success++;
@@ -47,7 +47,7 @@ function expectError(errorClass: any, f: Function): void {
   }
 }
 
-const options = { showHelp: false, exitOnError: false };
+const options = { exitOnError: false };
 
 test("flexible syntax", () => {
   const opt = {
@@ -67,7 +67,7 @@ test("targets and rest", () => {
     options: {},
     rest: ["-a", "--foo"],
   };
-  const actual = getArgs(cmd.split(/\s+/), opt, options);
+  const { help, ...actual } = getArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -303,10 +303,14 @@ test("example", () => {
   const opt = {
     a: `--foo:number[]=[42]; hogehoge`,
     b: `-b,--bar:number=42; fugafuga`,
-    c: `--baz:string; piyopiyo"`,
-    d: `--baz2:string!; piyopiyo(required)`,
+    c: `--baz:string; piyopiyo`,
+    d: `--baz2:string!; piyopiyo`,
     e: `--flag:boolean; a flag`,
   } as const;
-  const actual = getArgs(cmd.split(/\s+/), opt, options);
-  console.log(actual);
+  const result = getArgs(cmd.split(/\s+/), opt, {
+    usage: "command [<options>] <paths>...",
+    ...options,
+  });
+  console.log(result);
+  console.log(result.help(false));
 });
