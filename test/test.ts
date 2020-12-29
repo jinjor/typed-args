@@ -28,10 +28,9 @@ function test(name: string, f: Function) {
   }
 }
 function expectError(errorClass: any, f: Function): void {
-  let passed = false;
+  let result = null;
   try {
-    f();
-    passed = true;
+    result = f();
   } catch (e: any) {
     if (e instanceof errorClass) {
       return;
@@ -40,8 +39,11 @@ function expectError(errorClass: any, f: Function): void {
       `expected ${errorClass.name} to be thrown but got another error: ${e.message}`
     );
   }
-  if (passed) {
-    fail(`expected ${errorClass.name} to be thrown but no error was thrown`);
+  if (result) {
+    const json = JSON.stringify(result);
+    fail(
+      `expected ${errorClass.name} to be thrown but no error was thrown: ${json}`
+    );
   }
 }
 
@@ -160,13 +162,33 @@ test("targets and rest", () => {
 
 test("boolean option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
-  expectError(ValidationError, () => getArgs(["--foo="], opt, options));
+  expectError(ValidationError, () => getArgs(["--foo=x"], opt, options));
 });
 
 test("boolean short option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
   expectError(ValidationError, () => getArgs(["-a1"], opt, options));
 });
+
+{
+  for (const [a, cmd, expetedTargets, expectedOption] of [
+    ["--a:boolean", "--a foo", ["foo"], true],
+    ["-a,--foo:boolean", "-a foo", ["foo"], true],
+    ["--a:string", "--a foo", [], "foo"],
+    ["-a,--foo:string", "-a foo", [], "foo"],
+  ] as const) {
+    test(
+      "different behaviors between boolean and others: " + a + " | " + cmd,
+      () => {
+        const opt = { a } as const;
+        const expectedOptions = { a: expectedOption };
+        const result = getArgs(cmd.split(/\s+/), opt, options);
+        deepStrictEqual(result.targets, expetedTargets);
+        deepStrictEqual(result.options, expectedOptions);
+      }
+    );
+  }
+}
 
 {
   for (const s of [

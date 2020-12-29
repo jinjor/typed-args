@@ -70,10 +70,8 @@ type ParsedDefinition = {
   defaultValue: any;
   description: string;
 };
-type ParsedDefinitions = {
-  [key: string]: ParsedDefinition;
-};
-function parseDefinitions(types: { [key: string]: string }): ParsedDefinitions {
+type ParsedDefinitions = Record<string, ParsedDefinition>;
+function parseDefinitions(types: Record<string, string>): ParsedDefinitions {
   const result: ParsedDefinitions = {};
   const keys: Set<string> = new Set();
   const dups: string[] = [];
@@ -218,10 +216,20 @@ function parseDefinition(s: string): ParsedDefinition {
   };
 }
 
-function validate(parsed: any, defs: ParsedDefinitions): Record<string, any> {
+function validate(
+  args: string[],
+  parsed: any,
+  defs: ParsedDefinitions
+): Record<string, any> {
   const result = {} as Record<string, any>;
+  const longToType = new Map<string, Type>();
+  const shortToType = new Map<string, Type>();
   for (const key in defs) {
-    const { long, type, required } = defs[key];
+    const { short, long, type, required } = defs[key];
+    longToType.set(long, type);
+    if (short != null) {
+      shortToType.set(short, type);
+    }
     let value = parsed[long];
     if (value == null) {
       if (required) {
@@ -279,6 +287,25 @@ function validate(parsed: any, defs: ParsedDefinitions): Record<string, any> {
     }
     result[key] = value;
   }
+  for (const arg of args) {
+    const matched = /^--([^=]+)=.*$/.exec(arg);
+    if (matched) {
+      const [, k] = matched;
+      if (longToType.get(k) === "boolean") {
+        throw new ValidationError(k + " should be a boolean");
+      }
+    }
+  }
+  for (const key in parsed) {
+    if (
+      key !== "_" &&
+      key !== "--" &&
+      !longToType.has(key) &&
+      !shortToType.has(key)
+    ) {
+      throw new ValidationError(`unknown option: ` + key);
+    }
+  }
   return result;
 }
 
@@ -299,16 +326,19 @@ export function getArgs<T extends Record<string, string>>(
     ...options,
   };
   const minimistOptions = {
-    boolean: true,
+    boolean: [] as string[],
     default: {} as Record<string, string>,
     alias: {} as Record<string, string>,
     "--": true,
   };
   const defs = parseDefinitions(definitions);
   for (const key in defs) {
-    const { short, long, defaultValue } = defs[key];
+    const { short, long, type, defaultValue } = defs[key];
     if (short != null) {
       minimistOptions.alias[long] = short;
+    }
+    if (type === "boolean") {
+      minimistOptions.boolean.push(long);
     }
     if (defaultValue != null) {
       minimistOptions.default[long] = defaultValue;
@@ -321,7 +351,7 @@ export function getArgs<T extends Record<string, string>>(
     return {
       targets,
       rest,
-      options: validate(parsed, defs) as any,
+      options: validate(args, parsed, defs) as any,
     };
   } catch (e) {
     if (e instanceof ValidationError) {
