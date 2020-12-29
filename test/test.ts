@@ -1,12 +1,13 @@
-import { deepStrictEqual, fail } from "assert";
+import { deepStrictEqual, fail, strictEqual } from "assert";
 import { parseArgs, SettingsError, ValidationError } from "../src";
+import { spawnSync } from "child_process";
 
 let success = 0;
 let error = 0;
 process.on("beforeExit", () => {
   console.log();
   console.log("Ran " + (success + error) + " tests.");
-  success && console.log("✅ " + success + " succeeded");
+  success && console.log("✅ " + success + " passed");
   error && console.log("❌ " + error + " failed");
   console.log();
   process.exit(error);
@@ -298,22 +299,23 @@ test("empty string array", () => {
   }
 }
 
+function example(
+  args: string
+): { status: number | null; stdout: string; stderr: string } {
+  const path = "dist/test/example";
+  return spawnSync("node", [path, ...args.split(/\s+/)], {
+    encoding: "utf8",
+  });
+}
+
 test("example", () => {
-  const args = "-p 3001 --cors".split(/\s+/);
-  const {
-    options: { port, address, cors },
-  } = parseArgs(
-    args,
-    /* prettier-ignore */
-    {
-      port:    `-p,--port:number=3000;         Port to use`,
-      address: `-a,--address:string="0.0.0.0"; Address to use`,
-      cors:    `--cors:boolean;                Enable CORS`,
-      help:    `--help:boolean;                Show this help`,
-    } as const,
-    {
-      usage: "command [<options>] <paths>...",
-    }
-  );
-  console.log(port, address, cors);
+  const { status, stdout } = example("-p 3001 --cors");
+  strictEqual(status, 0);
+  strictEqual(stdout.trim(), "3001 0.0.0.0 true");
+});
+
+test("example: --help", () => {
+  const { status, stdout } = example("--help");
+  strictEqual(status, 0);
+  process.stdout.write(stdout);
 });

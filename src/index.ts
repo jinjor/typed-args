@@ -400,7 +400,7 @@ export function parseArgs<T extends Record<string, string>>(
   const help = (exit: number | null) => {
     const s = makeHelp(usage, defs);
     if (exit != null) {
-      console.error(s);
+      exit === 0 ? console.log(s) : console.error(s);
       process.exit(exit);
     }
     return s;

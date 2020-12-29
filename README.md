@@ -37,3 +37,14 @@ const {
 );
 console.log(port, address, cors);
 ```
+
+`--help` outputs:
+
+```
+Usage: command [<options>] <paths>...
+Options:
+  -p, --port <number>    Port to use (default:3000)
+  -a, --address <string> Address to use (default:"0.0.0.0")
+  --cors                 Enable CORS
+  --help                 Show this help
+```
