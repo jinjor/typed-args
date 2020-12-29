@@ -219,8 +219,12 @@ function parseDefinition(s: string): ParsedDefinition {
 function validate(
   args: string[],
   parsed: any,
-  defs: ParsedDefinitions
+  defs: ParsedDefinitions,
+  requireTarget: boolean
 ): Record<string, any> {
+  if (requireTarget && args.length === 0) {
+    throw new ValidationError();
+  }
   const result = {} as Record<string, any>;
   const longToType = new Map<string, Type>();
   const shortToType = new Map<string, Type>();
@@ -326,7 +330,9 @@ function makeHelp(usage: string | null, defs: ParsedDefinitions) {
     const left = `${short}${long}${type}`;
     const extra = d.required
       ? ` (required)`
-      : d.defaultValue
+      : d.defaultValue != null &&
+        JSON.stringify(d.defaultValue) !==
+          JSON.stringify(defaultValueOf(d.type))
       ? ` (default:${JSON.stringify(d.defaultValue)})`
       : "";
     const right = `${d.description}${extra}`;
@@ -342,22 +348,31 @@ function makeHelp(usage: string | null, defs: ParsedDefinitions) {
   return s;
 }
 
-type Help<T> = (exit: T) => T extends true ? never : string;
-export function getArgs<T extends Record<string, string>>(
+type Help<T extends number | null> = (
+  exit: T
+) => T extends number ? never : string;
+export function parseArgs<T extends Record<string, string>>(
   args: string[],
   definitions: T,
-  options?: { usage?: string; exitOnError?: boolean }
+  options?: {
+    usage?: string;
+    exitOnError?: boolean;
+    handleHelp?: boolean;
+    requireTarget?: boolean;
+  }
 ): {
   targets: string[];
   options: {
     [K in keyof T]: Parsed<T[K]>;
   };
   rest: string[];
-  help: Help<boolean>;
+  help: Help<number | null>;
 } {
-  const { usage, exitOnError } = {
+  const { usage, exitOnError, handleHelp, requireTarget } = {
     usage: null,
     exitOnError: true,
+    handleHelp: true,
+    requireTarget: false,
     ...options,
   };
   const minimistOptions = {
@@ -382,25 +397,32 @@ export function getArgs<T extends Record<string, string>>(
   const parsed = minimist(args, minimistOptions);
   const targets = parsed._;
   const rest = parsed["--"]!;
-  const help: Help<boolean> = (exit = true) => {
+  const help = (exit: number | null) => {
     const s = makeHelp(usage, defs);
-    if (exit) {
+    if (exit != null) {
       console.error(s);
-      process.exit(1);
+      process.exit(exit);
     }
     return s;
   };
   try {
+    const validatedOptions = validate(args, parsed, defs, requireTarget);
+    if (handleHelp && validatedOptions.help === true) {
+      help(0);
+    }
     return {
       targets,
       rest,
-      options: validate(args, parsed, defs) as any,
+      options: validatedOptions as any,
       help,
     };
   } catch (e) {
     if (e instanceof ValidationError) {
       if (exitOnError) {
-        help(true);
+        if (e.message) {
+          console.error("Error: " + e.message);
+        }
+        help(1);
       }
     }
     throw e;

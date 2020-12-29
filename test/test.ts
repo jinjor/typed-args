@@ -1,5 +1,5 @@
 import { deepStrictEqual, fail } from "assert";
-import { getArgs, SettingsError, ValidationError } from "../src";
+import { parseArgs, SettingsError, ValidationError } from "../src";
 
 let success = 0;
 let error = 0;
@@ -55,7 +55,7 @@ test("flexible syntax", () => {
     b: ` --flag : boolean `,
   } as const;
   const expected = { a: [1, 2], b: false };
-  const { options: actual } = getArgs([], opt, options);
+  const { options: actual } = parseArgs([], opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -67,7 +67,7 @@ test("targets and rest", () => {
     options: {},
     rest: ["-a", "--foo"],
   };
-  const { help, ...actual } = getArgs(cmd.split(/\s+/), opt, options);
+  const { help, ...actual } = parseArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -79,7 +79,7 @@ test("targets and rest", () => {
   ] as const) {
     test("duplicated options: " + a, () => {
       const opt = { a, b } as const;
-      expectError(SettingsError, () => getArgs([], opt, options));
+      expectError(SettingsError, () => parseArgs([], opt, options));
     });
   }
 }
@@ -95,7 +95,7 @@ test("targets and rest", () => {
     test("default value: " + a, () => {
       const opt = { a } as const;
       const expected = { a: expectedValue };
-      const { options: actual } = getArgs([], opt, options);
+      const { options: actual } = parseArgs([], opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -120,7 +120,7 @@ test("targets and rest", () => {
   ] as const) {
     test("invalid default value: " + s, () => {
       const opt = { s } as const;
-      expectError(SettingsError, () => getArgs([], opt, options));
+      expectError(SettingsError, () => parseArgs([], opt, options));
     });
   }
 }
@@ -136,7 +136,7 @@ test("targets and rest", () => {
     test("no default value: " + s, () => {
       const opt = { s } as const;
       const expected = { s: expectedDefaultValue };
-      const { options: actual } = getArgs([], opt, options);
+      const { options: actual } = parseArgs([], opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -146,7 +146,7 @@ test("targets and rest", () => {
   for (const a of [`--a:number!`, `--a:string!`] as const) {
     test("required value: " + a, () => {
       const opt = { a } as const;
-      expectError(ValidationError, () => getArgs([], opt, options));
+      expectError(ValidationError, () => parseArgs([], opt, options));
     });
   }
 }
@@ -155,19 +155,19 @@ test("targets and rest", () => {
   for (const a of [`--a:boolean!`, `--a:number[]!`, `--a:string[]!`] as const) {
     test("required types that have non-null defaults: " + a, () => {
       const opt = { a } as const;
-      getArgs([], opt, options);
+      parseArgs([], opt, options);
     });
   }
 }
 
 test("boolean option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
-  expectError(ValidationError, () => getArgs(["--foo=x"], opt, options));
+  expectError(ValidationError, () => parseArgs(["--foo=x"], opt, options));
 });
 
 test("boolean short option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
-  expectError(ValidationError, () => getArgs(["-a1"], opt, options));
+  expectError(ValidationError, () => parseArgs(["-a1"], opt, options));
 });
 
 {
@@ -182,7 +182,7 @@ test("boolean short option that has value", () => {
       () => {
         const opt = { a } as const;
         const expectedOptions = { a: expectedOption };
-        const result = getArgs(cmd.split(/\s+/), opt, options);
+        const result = parseArgs(cmd.split(/\s+/), opt, options);
         deepStrictEqual(result.targets, expetedTargets);
         deepStrictEqual(result.options, expectedOptions);
       }
@@ -199,7 +199,7 @@ test("boolean short option that has value", () => {
   ] as const) {
     test("non-boolean option that has no value: " + s, () => {
       const opt = { s } as const;
-      expectError(ValidationError, () => getArgs(["--a"], opt, options));
+      expectError(ValidationError, () => parseArgs(["--a"], opt, options));
     });
   }
 }
@@ -213,7 +213,7 @@ test("boolean short option that has value", () => {
   ] as const) {
     test("non-boolean short option that has no value: " + s, () => {
       const opt = { s } as const;
-      expectError(ValidationError, () => getArgs(["-a"], opt, options));
+      expectError(ValidationError, () => parseArgs(["-a"], opt, options));
     });
   }
 }
@@ -222,7 +222,7 @@ test("empty string", () => {
   const cmd = "--str=";
   const opt = { s: "--str:string" } as const;
   const expected = { s: "" };
-  const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
+  const { options: actual } = parseArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -230,7 +230,7 @@ test("empty string array", () => {
   const cmd = "--str= --str=";
   const opt = { s: "--str:string[]" } as const;
   const expected = { s: ["", ""] };
-  const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
+  const { options: actual } = parseArgs(cmd.split(/\s+/), opt, options);
   deepStrictEqual(actual, expected);
 });
 
@@ -239,7 +239,7 @@ test("empty string array", () => {
     test("string option that has number-like value: " + cmd, () => {
       const opt = { s: "-s,--str:string" } as const;
       const expected = { s: "1" };
-      const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
+      const { options: actual } = parseArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -250,7 +250,7 @@ test("empty string array", () => {
     test("string[] option that has number-like value: " + cmd, () => {
       const opt = { s: "-s,--str:string[]" } as const;
       const expected = { s: ["1", "2"] };
-      const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
+      const { options: actual } = parseArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -265,7 +265,7 @@ test("empty string array", () => {
       const cmd = "--a=1";
       const opt = { a } as const;
       const expected = { a: expectedValue };
-      const { options: actual } = getArgs(cmd.split(/\s+/), opt, options);
+      const { options: actual } = parseArgs(cmd.split(/\s+/), opt, options);
       deepStrictEqual(actual, expected);
     });
   }
@@ -281,7 +281,7 @@ test("empty string array", () => {
     test("multiple values for non-array types: " + a, () => {
       const opt = { a } as const;
       expectError(ValidationError, () =>
-        getArgs(cmd.split(/\s+/), opt, options)
+        parseArgs(cmd.split(/\s+/), opt, options)
       );
     });
   }
@@ -292,25 +292,28 @@ test("empty string array", () => {
     test("unknown options: " + cmd, () => {
       const opt = {} as const;
       expectError(ValidationError, () =>
-        getArgs(cmd.split(/\s+/), opt, options)
+        parseArgs(cmd.split(/\s+/), opt, options)
       );
     });
   }
 }
 
 test("example", () => {
-  const cmd = "a b -b 2 --baz2=1 --flag";
-  const opt = {
-    a: `--foo:number[]=[42]; hogehoge`,
-    b: `-b,--bar:number=42; fugafuga`,
-    c: `--baz:string; piyopiyo`,
-    d: `--baz2:string!; piyopiyo`,
-    e: `--flag:boolean; a flag`,
-  } as const;
-  const result = getArgs(cmd.split(/\s+/), opt, {
-    usage: "command [<options>] <paths>...",
-    ...options,
-  });
-  console.log(result);
-  console.log(result.help(false));
+  const args = "-p 3001 --cors".split(/\s+/);
+  const {
+    options: { port, address, cors },
+  } = parseArgs(
+    args,
+    /* prettier-ignore */
+    {
+      port:    `-p,--port:number=3000;         Port to use`,
+      address: `-a,--address:string="0.0.0.0"; Address to use`,
+      cors:    `--cors:boolean;                Enable CORS`,
+      help:    `--help:boolean;                Show this help`,
+    } as const,
+    {
+      usage: "command [<options>] <paths>...",
+    }
+  );
+  console.log(port, address, cors);
 });
