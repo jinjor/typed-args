@@ -235,48 +235,48 @@ function validate(
       shortToType.set(short, type);
     }
     let value = parsed[long];
-    const shortName = short != null && parsed[short] ? `-${short}` : null;
+    const shortName = short != null ? `-${short}` : null;
     const longName = `--${long}`;
-    const name = shortName ?? longName;
+    const name = short != null && parsed[short] ? shortName : longName;
 
     if (value == null) {
       if (required) {
         const n = `${shortName != null ? shortName + " or " : ""}${longName}`;
-        throw new ValidationError(n + " is required");
+        throw new ValidationError(`${n} is required`);
       }
       value = null;
     } else if (type === "boolean") {
       if (Array.isArray(value)) {
-        throw new ValidationError(name + " should not have multiple values");
+        throw new ValidationError(`${name} should not have multiple values`);
       }
       if (typeof value !== "boolean") {
-        throw new ValidationError(name + " should be a boolean");
+        throw new ValidationError(`${name} should be a boolean`);
       }
     } else if (type === "number") {
       if (Array.isArray(value)) {
-        throw new ValidationError(name + " should not have multiple values");
+        throw new ValidationError(`${name} should not have multiple values`);
       }
       if (typeof value !== "number") {
-        throw new ValidationError(name + " should be a number");
+        throw new ValidationError(`${name} should be a number`);
       }
     } else if (type === "number[]") {
       value = Array.isArray(value) ? value : [value];
       for (const v of value) {
         if (typeof v !== "number") {
           throw new ValidationError(
-            "All value of " + name + " should be a number"
+            "All value of " + `${name} should be a number`
           );
         }
       }
     } else if (type === "string") {
       if (Array.isArray(value)) {
-        throw new ValidationError(name + " should not have multiple values");
+        throw new ValidationError(`${name} should not have multiple values`);
       }
       if (typeof value !== "string") {
         if (typeof value === "number") {
           value = String(value);
         } else {
-          throw new ValidationError(name + " should be a string");
+          throw new ValidationError(`${name} should be a string`);
         }
       }
     } else if (type === "string[]") {
@@ -288,7 +288,7 @@ function validate(
             value[i] = String(v);
           } else {
             throw new ValidationError(
-              "All value of " + name + " should be a string"
+              `All value of ${name} should be a string`
             );
           }
         }
@@ -301,7 +301,7 @@ function validate(
     if (matched) {
       const [, k] = matched;
       if (longToType.get(k) === "boolean") {
-        throw new ValidationError(k + " should be a boolean");
+        throw new ValidationError(`--${k} should be a boolean`);
       }
     }
   }
@@ -312,7 +312,7 @@ function validate(
       !longToType.has(key) &&
       !shortToType.has(key)
     ) {
-      throw new ValidationError(`unknown option: ` + key);
+      throw new ValidationError(`unknown option: "${key}"`);
     }
   }
   return result;

@@ -1,4 +1,4 @@
-import { deepStrictEqual, fail, strictEqual } from "assert";
+import assert, { deepStrictEqual, fail, strictEqual } from "assert";
 import { parseArgs, SettingsError, ValidationError } from "../src";
 import { spawnSync } from "child_process";
 
@@ -28,24 +28,25 @@ function test(name: string, f: Function) {
     }, 0);
   }
 }
-function expectError(errorClass: any, f: Function): void {
+function expectError(errorClass: any, f: Function): string {
   let result = null;
   try {
     result = f();
   } catch (e: any) {
     if (e instanceof errorClass) {
-      return;
+      return e.message;
     }
     fail(
       `expected ${errorClass.name} to be thrown but got another error: ${e.message}`
     );
   }
-  if (result) {
-    const json = JSON.stringify(result);
-    fail(
-      `expected ${errorClass.name} to be thrown but no error was thrown: ${json}`
-    );
-  }
+  const json = JSON.stringify(result);
+  fail(
+    `expected ${errorClass.name} to be thrown but no error was thrown: ${json}`
+  );
+}
+function assertMatches(regex: RegExp, s: string): void {
+  assert(regex.test(s), `${regex} does not match \`${s}\``);
 }
 
 const options = { exitOnError: false };
@@ -105,7 +106,9 @@ test("targets and rest", () => {
 {
   for (const s of [
     `--a:boolean=1`,
+    `--a:boolean=0`,
     `--a:boolean=""`,
+    `--a:boolean=null`,
     `--a:number=true`,
     `--a:number=""`,
     `--a:number=[]`,
@@ -144,10 +147,50 @@ test("targets and rest", () => {
 }
 
 {
-  for (const a of [`--a:number!`, `--a:string!`] as const) {
+  for (const a of [`-a,--foo:number!`, `-a,--foo:string!`] as const) {
     test("required value: " + a, () => {
       const opt = { a } as const;
-      expectError(ValidationError, () => parseArgs([], opt, options));
+      const message = expectError(ValidationError, () =>
+        parseArgs([], opt, options)
+      );
+      assertMatches(/-a/, message);
+      assertMatches(/--foo/, message);
+      assertMatches(/required/, message);
+    });
+  }
+}
+
+{
+  for (const [a, cmd] of [
+    [`-a,--foo:number`, `-a a`],
+    [`-a,--foo:number`, `-a`],
+    [`-a,--foo:string`, `-a`],
+  ] as const) {
+    test("type mismatch by short options: " + a, () => {
+      const opt = { a } as const;
+      const message = expectError(ValidationError, () =>
+        parseArgs(cmd.split(/\s+/), opt, options)
+      );
+      assertMatches(/-a/, message);
+      assertMatches(/should/, message);
+    });
+  }
+}
+
+{
+  for (const [a, cmd] of [
+    [`-a,--foo:number`, `--foo a`],
+    [`-a,--foo:number`, `--foo=a`],
+    [`-a,--foo:number`, `--foo`],
+    [`-a,--foo:string`, `--foo`],
+  ] as const) {
+    test("type mismatch by long options: " + a, () => {
+      const opt = { a } as const;
+      const message = expectError(ValidationError, () =>
+        parseArgs(cmd.split(/\s+/), opt, options)
+      );
+      assertMatches(/--foo/, message);
+      assertMatches(/should/, message);
     });
   }
 }
@@ -163,12 +206,20 @@ test("targets and rest", () => {
 
 test("boolean option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
-  expectError(ValidationError, () => parseArgs(["--foo=x"], opt, options));
+  const message = expectError(ValidationError, () =>
+    parseArgs(["--foo=x"], opt, options)
+  );
+  assertMatches(/--foo/, message);
+  assertMatches(/boolean/, message);
 });
 
 test("boolean short option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
-  expectError(ValidationError, () => parseArgs(["-a1"], opt, options));
+  const message = expectError(ValidationError, () =>
+    parseArgs(["-a1"], opt, options)
+  );
+  assertMatches(/-a/, message);
+  assertMatches(/boolean/, message);
 });
 
 {
@@ -200,7 +251,10 @@ test("boolean short option that has value", () => {
   ] as const) {
     test("non-boolean option that has no value: " + s, () => {
       const opt = { s } as const;
-      expectError(ValidationError, () => parseArgs(["--a"], opt, options));
+      const message = expectError(ValidationError, () =>
+        parseArgs(["--a"], opt, options)
+      );
+      assertMatches(/--a/, message);
     });
   }
 }
@@ -214,7 +268,10 @@ test("boolean short option that has value", () => {
   ] as const) {
     test("non-boolean short option that has no value: " + s, () => {
       const opt = { s } as const;
-      expectError(ValidationError, () => parseArgs(["-a"], opt, options));
+      const message = expectError(ValidationError, () =>
+        parseArgs(["-a"], opt, options)
+      );
+      assertMatches(/-a/, message);
     });
   }
 }
@@ -274,16 +331,18 @@ test("empty string array", () => {
 
 {
   for (const [a, cmd] of [
-    // ["--a:boolean", "--a,--a"],
+    // ["--a:boolean", "--a --a"],
     ["--a:string", "--a=foo --a=bar"],
     ["-a,--aa:string", "-a foo --aa=bar"],
-    ["-a,--aa:number", "-a 1,--aa=2"],
+    ["-a,--aa:number", "-a 1 --aa=2"],
   ] as const) {
     test("multiple values for non-array types: " + a, () => {
       const opt = { a } as const;
-      expectError(ValidationError, () =>
+      const message = expectError(ValidationError, () =>
         parseArgs(cmd.split(/\s+/), opt, options)
       );
+      assertMatches(/-a/, message);
+      assertMatches(/multiple/, message);
     });
   }
 }
@@ -292,9 +351,12 @@ test("empty string array", () => {
   for (const cmd of ["-a", "-a1", "-a 1", "--aa", "--aa=", "--aa=1"] as const) {
     test("unknown options: " + cmd, () => {
       const opt = {} as const;
-      expectError(ValidationError, () =>
+      const message = expectError(ValidationError, () =>
         parseArgs(cmd.split(/\s+/), opt, options)
       );
+      // assertMatches(/-a/, message);
+      assertMatches(/a/, message);
+      assertMatches(/unknown/i, message);
     });
   }
 }
@@ -318,4 +380,10 @@ test("example: --help", () => {
   const { status, stdout } = example("--help");
   strictEqual(status, 0);
   process.stdout.write(stdout);
+});
+
+test("example: invalid", () => {
+  const { status, stderr } = example("--unknown");
+  strictEqual(status, 1);
+  process.stdout.write(stderr);
 });
