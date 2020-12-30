@@ -213,6 +213,11 @@ test("boolean option that has value", () => {
   assertMatches(/boolean/, message);
 });
 
+test(`boolean option that has value after "--"`, () => {
+  const opt = { s: "-a,--foo:boolean" } as const;
+  parseArgs(["--", "--foo=x"], opt, options);
+});
+
 test("boolean short option that has value", () => {
   const opt = { s: "-a,--foo:boolean" } as const;
   const message = expectError(ValidationError, () =>
@@ -388,6 +393,19 @@ test("empty string array", () => {
       );
       assertMatches(/-a/, message);
       assertMatches(/unknown/i, message);
+    });
+  }
+}
+
+{
+  for (const args of [[], ["--a"], ["--", "a"]]) {
+    test("`requireTarget` option: " + args, () => {
+      const opt = { a: "--a:boolean" } as const;
+      const expectedMessage = "target not found";
+      const message = expectError(ValidationError, () =>
+        parseArgs(args, opt, { ...options, requireTarget: expectedMessage })
+      );
+      assertMatches(new RegExp(expectedMessage), message);
     });
   }
 }

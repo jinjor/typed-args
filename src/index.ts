@@ -236,12 +236,18 @@ function collectValues(longValue: any, shortValue: any) {
 
 function validate(
   args: string[],
-  parsed: any,
+  parsed: Record<string, any>,
   defs: ParsedDefinitions,
-  requireTarget: boolean
-): Record<string, any> {
-  if (requireTarget && args.length === 0) {
-    throw new ValidationError();
+  requireTarget: string | boolean
+): { targets: string[]; options: any; rest: string[] } {
+  const targets = parsed._;
+  const rest = parsed["--"]!;
+  if (requireTarget && targets.length === 0) {
+    if (typeof requireTarget === "string") {
+      throw new ValidationError(requireTarget);
+    } else {
+      throw new ValidationError();
+    }
   }
   const result = {} as Record<string, any>;
   const longToType = new Map<string, Type>();
@@ -332,6 +338,9 @@ function validate(
     result[key] = value;
   }
   for (const arg of args) {
+    if (arg === "--") {
+      break;
+    }
     const matched = /^--([^=]+)=.*$/.exec(arg);
     if (matched) {
       const [, k] = matched;
@@ -360,7 +369,11 @@ function validate(
       throw new ValidationError(`unknown option: ${name}`);
     }
   }
-  return result;
+  return {
+    targets,
+    options: result as any,
+    rest,
+  };
 }
 
 function makeHelp(usage: string | null, defs: ParsedDefinitions) {
@@ -403,7 +416,7 @@ export function parseArgs<T extends Record<string, string>>(
     usage?: string;
     exitOnError?: boolean;
     handleHelp?: boolean;
-    requireTarget?: boolean;
+    requireTarget?: string | boolean;
   }
 ): {
   targets: string[];
@@ -435,8 +448,6 @@ export function parseArgs<T extends Record<string, string>>(
     }
   }
   const parsed = minimist(args, minimistOptions);
-  const targets = parsed._;
-  const rest = parsed["--"]!;
   const help = (exit: number | null) => {
     const s = makeHelp(usage, defs);
     if (exit != null) {
@@ -446,16 +457,11 @@ export function parseArgs<T extends Record<string, string>>(
     return s;
   };
   try {
-    const validatedOptions = validate(args, parsed, defs, requireTarget);
-    if (handleHelp && validatedOptions.help === true) {
+    const validated = validate(args, parsed, defs, requireTarget);
+    if (handleHelp && validated.options.help === true) {
       help(0);
     }
-    return {
-      targets,
-      rest,
-      options: validatedOptions as any,
-      help,
-    };
+    return { ...validated, help };
   } catch (e) {
     if (e instanceof ValidationError) {
       if (exitOnError) {
