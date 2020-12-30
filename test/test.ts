@@ -399,7 +399,7 @@ test("empty string array", () => {
 
 {
   for (const args of [[], ["--a"], ["--", "a"]]) {
-    test("`requireTarget` option: " + args, () => {
+    test("`requireTarget` option: " + JSON.stringify(args), () => {
       const opt = { a: "--a:boolean" } as const;
       const expectedMessage = "target not found";
       const message = expectError(ValidationError, () =>
