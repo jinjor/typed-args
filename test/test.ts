@@ -437,26 +437,27 @@ test("example: invalid", () => {
   process.stdout.write(stderr);
 });
 
-{
-  function assertType<T>(t: T): T {
-    return t;
-  }
+function assertType<T>(t: T): T {
+  return t;
+}
+
+test("types", () => {
   const opt = {
-    b1: `--num:boolean`,
-    b2: `--num:boolean=true`,
-    b3: `--num:boolean!`,
-    n1: `--num:number`,
-    n2: `--num:number=1`,
-    n3: `--num:number!`,
-    na1: `--num:number[]`,
-    na2: `--num:number[]=[]`,
-    na3: `--num:number[]!`,
-    s1: `--num:string`,
-    s2: `--num:string=""`,
-    s3: `--num:string!`,
-    sa1: `--num:string[]`,
-    sa2: `--num:string[]=[]`,
-    sa3: `--num:string[]!`,
+    b1: `--b1:boolean`,
+    b2: `--b2:boolean=true`,
+    b3: `--b3:boolean!`,
+    n1: `--n1:number`,
+    n2: `--n2:number=1`,
+    n3: `--n3:number!`,
+    na1: `--na1:number[]`,
+    na2: `--na2:number[]=[]`,
+    na3: `--na3:number[]!`,
+    s1: `--s1:string`,
+    s2: `--s2:string=""`,
+    s3: `--s3:string!`,
+    sa1: `--sa1:string[]`,
+    sa2: `--sa2:string[]=[]`,
+    sa3: `--sa3:string[]!`,
   } as const;
   let {
     options: {
@@ -476,7 +477,7 @@ test("example: invalid", () => {
       sa2,
       sa3,
     },
-  } = parseArgs([], opt, options);
+  } = parseArgs(["--n3=1", "--s3="], opt, options);
   b1 = assertType<boolean>(b1);
   b2 = assertType<boolean>(b2);
   b3 = assertType<boolean>(b3);
@@ -492,4 +493,4 @@ test("example: invalid", () => {
   sa1 = assertType<string[]>(sa1);
   sa2 = assertType<string[]>(sa2);
   sa3 = assertType<string[]>(sa3);
-}
+});
