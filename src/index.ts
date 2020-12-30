@@ -216,6 +216,24 @@ function parseDefinition(s: string): ParsedDefinition {
   };
 }
 
+function collectValues(longValue: any, shortValue: any) {
+  longValue ??= null;
+  shortValue ??= null;
+  if (longValue == null) {
+    return shortValue;
+  }
+  if (shortValue == null) {
+    return longValue;
+  }
+  if (!Array.isArray(longValue)) {
+    longValue = [longValue];
+  }
+  if (!Array.isArray(shortValue)) {
+    shortValue = [shortValue];
+  }
+  return [...longValue, ...shortValue];
+}
+
 function validate(
   args: string[],
   parsed: any,
@@ -229,54 +247,71 @@ function validate(
   const longToType = new Map<string, Type>();
   const shortToType = new Map<string, Type>();
   for (const key in defs) {
-    const { short, long, type, required } = defs[key];
+    const { short, long, type, required, defaultValue } = defs[key];
     longToType.set(long, type);
     if (short != null) {
       shortToType.set(short, type);
     }
-    let value = parsed[long];
+    if (type === "boolean") {
+      if (short != null && parsed[short] === false) {
+        parsed[short] = null;
+      }
+      if (parsed[long] === false) {
+        parsed[long] = null;
+      }
+    }
+    const shortValue = short != null ? parsed[short] : null;
+    const longValue = parsed[long];
+    let value = collectValues(longValue, shortValue);
     const shortName = short != null ? `-${short}` : null;
     const longName = `--${long}`;
-    const name = short != null && parsed[short] ? shortName : longName;
-
+    const foundName = longValue != null ? longName : shortName;
+    if (value == null) {
+      value = defaultValue;
+    }
     if (value == null) {
       if (required) {
         const n = `${shortName != null ? shortName + " or " : ""}${longName}`;
         throw new ValidationError(`${n} is required`);
       }
-      value = null;
     } else if (type === "boolean") {
       if (Array.isArray(value)) {
-        throw new ValidationError(`${name} should not have multiple values`);
+        throw new ValidationError(
+          `${foundName} should not have multiple values`
+        );
       }
       if (typeof value !== "boolean") {
-        throw new ValidationError(`${name} should be a boolean`);
+        throw new ValidationError(`${foundName} should be a boolean`);
       }
     } else if (type === "number") {
       if (Array.isArray(value)) {
-        throw new ValidationError(`${name} should not have multiple values`);
+        throw new ValidationError(
+          `${foundName} should not have multiple values`
+        );
       }
       if (typeof value !== "number") {
-        throw new ValidationError(`${name} should be a number`);
+        throw new ValidationError(`${foundName} should be a number`);
       }
     } else if (type === "number[]") {
       value = Array.isArray(value) ? value : [value];
       for (const v of value) {
         if (typeof v !== "number") {
           throw new ValidationError(
-            "All value of " + `${name} should be a number`
+            "All value of " + `${foundName} should be a number`
           );
         }
       }
     } else if (type === "string") {
       if (Array.isArray(value)) {
-        throw new ValidationError(`${name} should not have multiple values`);
+        throw new ValidationError(
+          `${foundName} should not have multiple values`
+        );
       }
       if (typeof value !== "string") {
         if (typeof value === "number") {
           value = String(value);
         } else {
-          throw new ValidationError(`${name} should be a string`);
+          throw new ValidationError(`${foundName} should be a string`);
         }
       }
     } else if (type === "string[]") {
@@ -288,7 +323,7 @@ function validate(
             value[i] = String(v);
           } else {
             throw new ValidationError(
-              `All value of ${name} should be a string`
+              `All value of ${foundName} should be a string`
             );
           }
         }
@@ -312,7 +347,17 @@ function validate(
       !longToType.has(key) &&
       !shortToType.has(key)
     ) {
-      throw new ValidationError(`unknown option: "${key}"`);
+      let name!: string;
+      for (const arg of args) {
+        if (new RegExp(`^--${key}`).test(arg)) {
+          name = `--${key}`;
+          break;
+        } else if (new RegExp(`^-${key}`).test(arg)) {
+          name = `-${key}`;
+          break;
+        }
+      }
+      throw new ValidationError(`unknown option: ${name}`);
     }
   }
   return result;
@@ -377,21 +422,16 @@ export function parseArgs<T extends Record<string, string>>(
   };
   const minimistOptions = {
     boolean: [] as string[],
-    default: {} as Record<string, string>,
-    alias: {} as Record<string, string>,
     "--": true,
   };
   const defs = parseDefinitions(definitions);
   for (const key in defs) {
-    const { short, long, type, defaultValue } = defs[key];
-    if (short != null) {
-      minimistOptions.alias[long] = short;
-    }
+    const { short, long, type } = defs[key];
     if (type === "boolean") {
+      if (short != null) {
+        minimistOptions.boolean.push(short);
+      }
       minimistOptions.boolean.push(long);
-    }
-    if (defaultValue != null) {
-      minimistOptions.default[long] = defaultValue;
     }
   }
   const parsed = minimist(args, minimistOptions);

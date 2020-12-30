@@ -348,14 +348,45 @@ test("empty string array", () => {
 }
 
 {
+  for (const [a, cmd] of [
+    ["-a,--foo:number[]", "--a=1 --foo=2"],
+    ["-a,--foo:string[]", "-a x --foo=y"],
+  ] as const) {
+    test("take both short and long: " + a, () => {
+      const opt = { a } as const;
+      parseArgs(cmd.split(/\s+/), opt, options);
+    });
+  }
+}
+
+{
+  for (const [a, cmd] of [
+    ["-a,--foo:number", "--a=1 --foo=2"],
+    ["-a,--foo:number[]", "--a=x --foo=2"],
+    ["-a,--foo:number[]", "--a=1 --foo=y"],
+    ["-a,--foo:number[]", "--a=x --foo=y"],
+    ["-a,--foo:string", "-a x --foo=y"],
+    ["-a,--foo:string[]", "--a=x --foo"],
+    ["-a,--foo:string[]", "--a --foo=y"],
+    ["-a,--foo:string[]", "--a --foo"],
+  ] as const) {
+    test("take both short and long (invalid): " + a, () => {
+      const opt = { a } as const;
+      expectError(ValidationError, () =>
+        parseArgs(cmd.split(/\s+/), opt, options)
+      );
+    });
+  }
+}
+
+{
   for (const cmd of ["-a", "-a1", "-a 1", "--aa", "--aa=", "--aa=1"] as const) {
     test("unknown options: " + cmd, () => {
       const opt = {} as const;
       const message = expectError(ValidationError, () =>
         parseArgs(cmd.split(/\s+/), opt, options)
       );
-      // assertMatches(/-a/, message);
-      assertMatches(/a/, message);
+      assertMatches(/-a/, message);
       assertMatches(/unknown/i, message);
     });
   }
