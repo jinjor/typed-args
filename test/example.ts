@@ -5,7 +5,7 @@ const {
   options: { port, address, cors },
 } = parseArgs(
   args,
-  /* prettier-ignore */
+  // prettier-ignore
   {
       port:    `-p,--port:number=3000;         Port to use`,
       address: `-a,--address:string="0.0.0.0"; Address to use`,
