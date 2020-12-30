@@ -1,6 +1,6 @@
 {
   "name": "@jinjor/typed-args",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "main": "dist/src/index.js",
   "license": "MIT",
   "repository": "git://github.com/jinjor/typed-args.git",
