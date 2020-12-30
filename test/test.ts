@@ -436,3 +436,60 @@ test("example: invalid", () => {
   strictEqual(status, 1);
   process.stdout.write(stderr);
 });
+
+{
+  function assertType<T>(t: T): T {
+    return t;
+  }
+  const opt = {
+    b1: `--num:boolean`,
+    b2: `--num:boolean=true`,
+    b3: `--num:boolean!`,
+    n1: `--num:number`,
+    n2: `--num:number=1`,
+    n3: `--num:number!`,
+    na1: `--num:number[]`,
+    na2: `--num:number[]=[]`,
+    na3: `--num:number[]!`,
+    s1: `--num:string`,
+    s2: `--num:string=""`,
+    s3: `--num:string!`,
+    sa1: `--num:string[]`,
+    sa2: `--num:string[]=[]`,
+    sa3: `--num:string[]!`,
+  } as const;
+  let {
+    options: {
+      b1,
+      b2,
+      b3,
+      n1,
+      n2,
+      n3,
+      na1,
+      na2,
+      na3,
+      s1,
+      s2,
+      s3,
+      sa1,
+      sa2,
+      sa3,
+    },
+  } = parseArgs([], opt, options);
+  b1 = assertType<boolean>(b1);
+  b2 = assertType<boolean>(b2);
+  b3 = assertType<boolean>(b3);
+  n1 = assertType<number | null>(n1);
+  n2 = assertType<number>(n2);
+  n3 = assertType<number>(n3);
+  na1 = assertType<number[]>(na1);
+  na2 = assertType<number[]>(na2);
+  na3 = assertType<number[]>(na3);
+  s1 = assertType<string | null>(s1);
+  s2 = assertType<string>(s2);
+  s3 = assertType<string>(s3);
+  sa1 = assertType<string[]>(sa1);
+  sa2 = assertType<string[]>(sa2);
+  sa3 = assertType<string[]>(sa3);
+}
